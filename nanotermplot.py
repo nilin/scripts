@@ -24,7 +24,7 @@ class Figure:
     vertpad: int = 5
     labels = []
 
-    def __init__(self, h=50, w=100):
+    def __init__(self, h=50, w=os.get_terminal_size().columns - 40):
         self.h = h
         self.w = w
         self.grid = [[" " for j in range(w)] for i in range(h)]
@@ -35,12 +35,14 @@ class Figure:
         c, d = ylim
         j = self.w * (x - a) / (b - a)
         i = self.h - self.h * (y - c) / (d - c)
-
         return round(i), round(j)
 
     def plot(self, X, Y=None, style="*", label=""):
         if Y is None:
             X, Y = np.arange(len(X)), X
+
+        X = self.downsample(X)
+        Y = self.downsample(Y)
 
         self.plots.append((X, Y, style))
         self.labels.append(label)
@@ -102,6 +104,18 @@ class Figure:
     def legend(self):
         for (X, Y, style), label in zip(self.plots, self.labels):
             print(self.leftpad * " ", style, label)
+
+    @staticmethod
+    def downsample(x):
+        resolution = 100
+        if len(x) < 3 * resolution:
+            return x
+
+        blocksize = len(x) // resolution
+        cutoff = resolution * blocksize
+        x = np.reshape(x[:cutoff], (resolution, blocksize))
+        x = np.mean(x, axis=1)
+        return x
 
     @staticmethod
     def max(x, y):
@@ -166,6 +180,7 @@ if __name__ == "__main__":
         styles = ["*", "#", "o", "-"]
         for path, style in zip(paths, styles):
             data = np.loadtxt(path)
+
             if len(data.shape) == 1:
                 fig.plot(data, style=style, label=path)
             elif len(data.shape) == 2:
