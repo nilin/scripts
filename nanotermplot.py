@@ -107,8 +107,8 @@ class Figure:
 
     @staticmethod
     def downsample(x):
-        resolution = 100
-        if len(x) < 3 * resolution:
+        resolution = 200
+        if len(x) < resolution:
             return x
 
         blocksize = len(x) // resolution
