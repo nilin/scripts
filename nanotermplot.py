@@ -5,6 +5,8 @@ nilin
 
 import numpy as np
 import math
+import sys
+import os
 
 
 def ndigits(x):
@@ -117,7 +119,7 @@ class Figure:
         return min(x, y)
 
     @staticmethod
-    def get_linear_ticks(a, b, orderdifference=1):
+    def get_linear_ticks(a, b, orderdifference=2):
         step = 10 ** (ndigits(b - a) - orderdifference)
         a = math.floor(a / step) * step
         b = math.ceil(b / step) * step
@@ -131,19 +133,40 @@ class Figure:
 
 
 if __name__ == "__main__":
-    x = np.arange(100)
-    y = x**2 + 1
-    z = 50 * x + 1
 
-    fig1 = Figure()
-    fig1.plot(y, label="y")
-    fig1.plot(z, style="-", label="z")
-    # f1ig.yscale = "log"
-    fig1.show()
-    fig1.legend()
+    def test():
+        x = np.arange(100)
+        y = x**2 + 1
+        z = 50 * x + 1
 
-    fig2 = Figure()
-    fig2.plot(y)
-    fig2.plot(z, style="-")
-    fig2.yscale = "log"
-    fig2.show()
+        fig1 = Figure()
+        fig1.plot(y, label="y")
+        fig1.plot(z, style="-", label="z")
+        # f1ig.yscale = "log"
+        fig1.show()
+        fig1.legend()
+
+        fig2 = Figure()
+        fig2.plot(y)
+        fig2.plot(z, style="-")
+        fig2.yscale = "log"
+        fig2.show()
+
+    if len(sys.argv) == 1:
+        test()
+    else:
+        fig = Figure()
+        paths = [path for path in sys.argv[1:] if os.path.isfile(path)]
+        styles = ["*", "#", "o", "-"]
+        for path, style in zip(paths, styles):
+            data = np.loadtxt(path)
+            if len(data.shape) == 1:
+                fig.plot(data, style=style, label=path)
+            elif len(data.shape) == 2:
+                fig.plot(data[:, 0], data[:, 1], style=style, label=path)
+            else:
+                raise ValueError("data must have 1 or 2 columns")
+
+        if "--logy" in sys.argv:
+            fig.yscale = "log"
+        fig.show()
