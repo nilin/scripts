@@ -195,3 +195,4 @@ if __name__ == "__main__":
             fig.ylim = args.ylim
 
         fig.show()
+        fig.legend()
