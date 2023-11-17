@@ -16,15 +16,19 @@ def ndigits(x):
 
 class Figure:
     plots = []
+    labels = []
     xscale: str = "linear"
     yscale: str = "linear"
     xlim = (None, None)
     ylim = (None, None)
-    leftpad: int = 10
-    vertpad: int = 5
-    labels = []
+    hori_pad: int = 20
+    vert_pad: int = 5
 
-    def __init__(self, h=50, w=os.get_terminal_size().columns - 40):
+    def __init__(self, h=None, w=None):
+        if h is None:
+            h = os.get_terminal_size().lines - 2 * self.vert_pad
+        if w is None:
+            w = os.get_terminal_size().columns - 2 * self.hori_pad
         self.h = h
         self.w = w
         self.grid = [[" " for j in range(w)] for i in range(h)]
@@ -35,9 +39,9 @@ class Figure:
         c, d = ylim
         j = self.w * (x - a) / (b - a)
         i = self.h - self.h * (y - c) / (d - c)
-        return round(i), round(j)
+        return round(i), round(j), i - round(i), j - round(j)
 
-    def plot(self, X, Y=None, style="*", label=""):
+    def plot(self, X, Y=None, style="quarter-block", label=""):
         if Y is None:
             X, Y = np.arange(len(X)), X
 
@@ -49,21 +53,33 @@ class Figure:
         self.update_lims(X, Y)
 
     def renderplot(self, X, Y, style):
-        for x, y in zip(X, Y):
-            i, j = self.getpos(*self.transform(x, y, self.xlim, self.ylim))
+        if style == "quarter-block":
+            styler = QuarterBlockStyler()
+        else:
+            styler = Styler(style)
+
+        sparse_plot = self.get_sparse_plot(X, Y, styler)
+        for (i, j), pixel in sparse_plot:
             if i >= 0 and i < self.h and j >= 0 and j < self.w:
-                self.grid[i][j] = style
+                self.grid[i][j] = styler.update_pixel(pixel, self.grid[i][j])
+
+    def get_sparse_plot(self, X, Y, styler):
+        out = []
+        for x, y in zip(X, Y):
+            i, j, di, dj = self.getpos(*self.transform(x, y, self.xlim, self.ylim))
+            out.append(((i, j), styler.get_initial_pixel(di, dj)))
+        return out
 
     def render_y_ticks(self):
         yticks = self.get_yticks()
-        labels = [f"{y:.3f}" for y in yticks]
-        barwidth = max([len(label) for label in labels])
+        labels = [f"{y:.3f} -- " for y in yticks]
+        barwidth = self.hori_pad
         self.lbar = [" " * barwidth for _ in range(self.h)]
 
         for y, label in zip(yticks, labels):
-            i, _ = self.getpos(*self.transform(0, y, (0, 1), self.ylim))
+            i, _, t, _ = self.getpos(*self.transform(0, y, (0, 1), self.ylim))
             if i >= 0 and i < self.h:
-                self.lbar[i] = " " * (barwidth - len(label)) + label
+                self.lbar[i] = " " * (barwidth - len(label)) + label[-barwidth:]
 
     def show(self):
         for X, Y, style in self.plots:
@@ -71,12 +87,9 @@ class Figure:
 
         self.render_y_ticks()
 
-        rows = [
-            self.leftpad * " " + label + "".join(row)
-            for label, row in zip(self.lbar, self.grid)
-        ]
+        rows = [label + "".join(row) for label, row in zip(self.lbar, self.grid)]
         img = ("\n").join(rows)
-        img = "\n" * self.vertpad + img + "\n" * self.vertpad
+        img = "\n" * self.vert_pad + img + "\n" * self.vert_pad
         print(img)
 
     def get_yticks(self):
@@ -107,12 +120,12 @@ class Figure:
 
     def legend(self):
         for (X, Y, style), label in zip(self.plots, self.labels):
-            print(self.leftpad * " ", style, label)
+            print(self.hori_pad * " ", style, label)
 
     @staticmethod
     def downsample(x):
-        resolution = 200
-        if len(x) < resolution:
+        resolution = 500
+        if len(x) < 5 * resolution:
             return x
 
         blocksize = len(x) // resolution
@@ -151,6 +164,67 @@ class Figure:
         return [10**p for p in range(p1, p2 + 1)]
 
 
+class Styler:
+    def __init__(self, style=None):
+        self.style = style
+
+    def get_initial_pixel(self, di, dj):
+        return self.style
+
+    def update_pixel(self, new, prev):
+        return new
+
+
+class QuarterBlockStyler(Styler):
+    lowerhalfblock = "\u2584"
+    upperhalfblock = "\u2580"
+    lefthalfblock = "\u258C"
+    righthalfblock = "\u2590"
+    block = "\u2588"
+    nw = "\u2598"
+    ne = "\u259D"
+    sw = "\u2596"
+    se = "\u2597"
+
+    quarterblocktable = {
+        (0, 0, 0, 0): " ",
+        (0, 0, 0, 1): se,
+        (0, 0, 1, 0): sw,
+        (0, 0, 1, 1): lowerhalfblock,
+        (0, 1, 0, 0): ne,
+        (0, 1, 0, 1): righthalfblock,
+        (0, 1, 1, 0): "\u259E",
+        (0, 1, 1, 1): "\u259F",
+        (1, 0, 0, 0): nw,
+        (1, 0, 0, 1): "\u259A",
+        (1, 0, 1, 0): lefthalfblock,
+        (1, 0, 1, 1): "\u2599",
+        (1, 1, 0, 0): upperhalfblock,
+        (1, 1, 0, 1): "\u259C",
+        (1, 1, 1, 0): "\u259B",
+        (1, 1, 1, 1): block,
+    }
+
+    def __init__(self):
+        self.quarterblock_keys = {c: k for k, c in self.quarterblocktable.items()}
+
+    def get_initial_pixel(self, di, dj):
+        south = di > 0
+        east = dj > 0
+        return [[self.nw, self.ne], [self.sw, self.se]][south][east]
+
+    def update_pixel(self, new, prev):
+        if prev not in self.quarterblock_keys:
+            return new
+
+        def _max(a, b):
+            return tuple([max(x, y) for x, y in zip(a, b)])
+
+        keys = self.quarterblock_keys
+
+        return self.quarterblocktable[_max(keys[new], keys[prev])]
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--logy", action="store_true")
@@ -159,13 +233,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     def test():
-        x = np.arange(100)
+        x = np.arange(0, 100, 0.1)
         y = x**2 + 1
         z = 50 * x + 1
 
         fig = Figure()
-        fig.plot(y, label="y")
-        fig.plot(z, style="-", label="z")
+        fig.plot(z, style="*", label="z")
+        fig.plot(y, label="y", style="quarter-block")
 
         if args.logy:
             fig.yscale = "log"
