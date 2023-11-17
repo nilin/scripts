@@ -17,8 +17,9 @@ class Figure:
     yscale: str = "linear"
     xlim = (None, None)
     ylim = (None, None)
-    leftpad: int = 0
+    leftpad: int = 10
     vertpad: int = 5
+    labels = []
 
     def __init__(self, h=50, w=100):
         self.h = h
@@ -34,11 +35,12 @@ class Figure:
 
         return round(i), round(j)
 
-    def plot(self, X, Y=None, style="*"):
+    def plot(self, X, Y=None, style="*", label=""):
         if Y is None:
             X, Y = np.arange(len(X)), X
 
         self.plots.append((X, Y, style))
+        self.labels.append(label)
         self.update_lims(X, Y)
 
     def renderplot(self, X, Y, style):
@@ -64,9 +66,11 @@ class Figure:
 
         self.render_y_ticks()
 
-        rows = [label + "".join(row) for label, row in zip(self.lbar, self.grid)]
-        # rows=[''.join(row) for row in self.grid]
-        img = ("\n" + self.leftpad * " ").join(rows)
+        rows = [
+            self.leftpad * " " + label + "".join(row)
+            for label, row in zip(self.lbar, self.grid)
+        ]
+        img = ("\n").join(rows)
         img = "\n" * self.vertpad + img + "\n" * self.vertpad
         print(img)
 
@@ -92,6 +96,10 @@ class Figure:
             ylim = (np.log(ylim[0]), np.log(ylim[1]))
         return x, y, xlim, ylim
 
+    def legend(self):
+        for (X, Y, style), label in zip(self.plots, self.labels):
+            print(self.leftpad * " ", style, label)
+
     @staticmethod
     def max(x, y):
         if x is None:
@@ -109,7 +117,7 @@ class Figure:
         return min(x, y)
 
     @staticmethod
-    def get_linear_ticks(self, a, b, orderdifference=1):
+    def get_linear_ticks(a, b, orderdifference=1):
         step = 10 ** (ndigits(b - a) - orderdifference)
         a = math.floor(a / step) * step
         b = math.ceil(b / step) * step
@@ -125,10 +133,17 @@ class Figure:
 if __name__ == "__main__":
     x = np.arange(100)
     y = x**2 + 1
-    z = 100 * x + 1
+    z = 50 * x + 1
 
-    fig = Figure()
-    fig.plot(y)
-    fig.plot(z, style="-")
-    fig.yscale = "log"
-    fig.show()
+    fig1 = Figure()
+    fig1.plot(y, label="y")
+    fig1.plot(z, style="-", label="z")
+    # f1ig.yscale = "log"
+    fig1.show()
+    fig1.legend()
+
+    fig2 = Figure()
+    fig2.plot(y)
+    fig2.plot(z, style="-")
+    fig2.yscale = "log"
+    fig2.show()
