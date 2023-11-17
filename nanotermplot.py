@@ -124,7 +124,7 @@ class Figure:
 
     @staticmethod
     def downsample(x):
-        resolution = 500
+        resolution = 1000
         if len(x) < 5 * resolution:
             return x
 
@@ -233,13 +233,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     def test():
-        x = np.arange(0, 100, 0.1)
-        y = x**2 + 1
-        z = 50 * x + 1
+        x = np.arange(-1, 1, 0.001)
+        y = x
+        z = 16 * x**5 - 20 * x**3 + 5 * x
 
         fig = Figure()
-        fig.plot(z, style="*", label="z")
-        fig.plot(y, label="y", style="quarter-block")
+        fig.plot(y, style="*", label="z")
+        fig.plot(z, label="y", style="quarter-block")
 
         if args.logy:
             fig.yscale = "log"
