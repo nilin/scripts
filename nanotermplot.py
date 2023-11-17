@@ -7,6 +7,7 @@ import numpy as np
 import math
 import sys
 import os
+import argparse
 
 
 def ndigits(x):
@@ -53,7 +54,7 @@ class Figure:
 
     def render_y_ticks(self):
         yticks = self.get_yticks()
-        labels = [str(y) for y in yticks]
+        labels = [f"{y:.3f}" for y in yticks]
         barwidth = max([len(label) for label in labels])
         self.lbar = [" " * barwidth for _ in range(self.h)]
 
@@ -123,7 +124,7 @@ class Figure:
         step = 10 ** (ndigits(b - a) - orderdifference)
         a = math.floor(a / step) * step
         b = math.ceil(b / step) * step
-        return range(a, b, step)
+        return np.arange(a, b, step)
 
     @staticmethod
     def get_log_ticks(a, b):
@@ -133,30 +134,35 @@ class Figure:
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--logy", action="store_true")
+    parser.add_argument("--ylim", nargs=2, type=float)
+    parser.add_argument("--files", nargs="*", action="store")
+    args = parser.parse_args()
 
     def test():
         x = np.arange(100)
         y = x**2 + 1
         z = 50 * x + 1
 
-        fig1 = Figure()
-        fig1.plot(y, label="y")
-        fig1.plot(z, style="-", label="z")
-        # f1ig.yscale = "log"
-        fig1.show()
-        fig1.legend()
+        fig = Figure()
+        fig.plot(y, label="y")
+        fig.plot(z, style="-", label="z")
 
-        fig2 = Figure()
-        fig2.plot(y)
-        fig2.plot(z, style="-")
-        fig2.yscale = "log"
-        fig2.show()
+        if args.logy:
+            fig.yscale = "log"
 
-    if len(sys.argv) == 1:
+        if args.ylim is not None:
+            fig.ylim = args.ylim
+
+        fig.show()
+        fig.legend()
+
+    if args.files is None:
         test()
     else:
         fig = Figure()
-        paths = [path for path in sys.argv[1:] if os.path.isfile(path)]
+        paths = [path for path in args.files if os.path.isfile(path)]
         styles = ["*", "#", "o", "-"]
         for path, style in zip(paths, styles):
             data = np.loadtxt(path)
@@ -167,6 +173,10 @@ if __name__ == "__main__":
             else:
                 raise ValueError("data must have 1 or 2 columns")
 
-        if "--logy" in sys.argv:
+        if args.logy:
             fig.yscale = "log"
+
+        if args.ylim is not None:
+            fig.ylim = args.ylim
+
         fig.show()
