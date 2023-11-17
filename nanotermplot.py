@@ -89,8 +89,12 @@ class Figure:
     def update_lims(self, X, Y):
         a, b = self.xlim
         c, d = self.ylim
+
         self.xlim = (self.min(a, min(X)), self.max(b, max(X)))
-        self.ylim = (self.min(c, min(Y)), self.max(d, max(Y)))
+        self.ylim = (
+            self.min(c, min(Y) * 1.2 - max(Y) * 0.2),
+            self.max(d, max(Y) * 1.2 - min(Y) * 0.2),
+        )
 
     def transform(self, x, y, xlim, ylim):
         if self.xscale == "log":
