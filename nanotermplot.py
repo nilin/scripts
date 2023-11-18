@@ -159,7 +159,7 @@ class Figure:
 
     def render_y_ticks(self):
         yticks = self.get_yticks()
-        labels = [f"{y}" for y in yticks]
+        labels = [f"{y:.6f}" for y in yticks]
         barwidth = self.hori_pad
         self.lbar = [" " * barwidth for _ in range(self.h)]
 
