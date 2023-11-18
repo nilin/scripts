@@ -70,7 +70,7 @@ class Plot:
         lim = np.array(lim)
         return (1 + delta) * lim - delta * np.mean(lim)
 
-    def reparameterize(self, fig, res_small=1000, k_interpolation=10):
+    def reparameterize(self, fig, res_small=1000, res_final=5000):
         dwdx = fig.w / (fig.xlim[1] - fig.xlim[0])
         dhdy = fig.h / (fig.ylim[1] - fig.ylim[0])
 
@@ -88,6 +88,7 @@ class Plot:
         self.Y = np.array(list(self.blockwise_mean(self.Y, indices)))
         self.delnan()
 
+        k_interpolation = res_final // len(self.X)
         self.X = self.interpolate(self.X, k_interpolation)
         self.Y = self.interpolate(self.Y, k_interpolation)
 
