@@ -55,7 +55,7 @@ class Figure:
             if i >= 0 and i < self.h and j >= 0 and j < self.w:
                 self.grid[i][j] = styler.update_pixel(pixel, self.grid[i][j])
 
-    def thinning_and_connect(self, X, Y, xlim, ylim, eps=0.01):
+    def thinning_and_connect(self, X, Y, xlim, ylim, eps=0.002):
         XY = np.stack([X, Y], axis=1)
         p0 = XY[0]
         dx = xlim[1] - xlim[0]
@@ -213,7 +213,7 @@ class Figure:
 
     @staticmethod
     def downsample(x, y):
-        resolution = 5000
+        resolution = 1000
         if len(x) < 5 * resolution:
             return x, y
 
