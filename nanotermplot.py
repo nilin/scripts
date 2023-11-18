@@ -249,8 +249,8 @@ if __name__ == "__main__":
         z = 16 * x**5 - 20 * x**3 + 5 * x
 
         fig = Figure()
-        fig.plot(y, style="*", label="z")
         fig.plot(z, label="y", style="quarter-block")
+        fig.plot(y, style="#", label="z")
 
         if args.logy:
             fig.yscale = "log"
@@ -266,7 +266,7 @@ if __name__ == "__main__":
     else:
         fig = Figure()
         paths = [path for path in args.files if os.path.isfile(path)]
-        styles = ["quarter-block", "*", "#", "o"]
+        styles = ["quarter-block", "#", "*", "o"]
         for path, style in zip(paths, styles):
             data = np.loadtxt(path)
 
