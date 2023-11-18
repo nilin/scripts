@@ -22,7 +22,7 @@ class Figure:
     xlim = (None, None)
     ylim = (None, None)
     hori_pad: int = 20
-    vert_pad: int = 5
+    vert_pad: int = 10
 
     def __init__(self, h=None, w=None):
         if h is None:
@@ -89,8 +89,10 @@ class Figure:
 
         rows = [label + "".join(row) for label, row in zip(self.lbar, self.grid)]
         img = ("\n").join(rows)
-        img = "\n" * self.vert_pad + img + "\n" * self.vert_pad
+
+        print(self.legend())
         print(img)
+        print("\n" * self.vert_pad, end="")
 
     def get_yticks(self):
         if self.yscale == "log":
@@ -119,8 +121,15 @@ class Figure:
         return x, y, xlim, ylim
 
     def legend(self):
+        rows = []
         for (X, Y, style), label in zip(self.plots, self.labels):
-            print(self.hori_pad * " ", style, label)
+            if style == "quarter-block":
+                style = QuarterBlockStyler.diag
+            rows.append(self.hori_pad * " " + f"{style} {label}")
+        rows.append("")
+        if len(rows) < self.vert_pad:
+            rows = [""] * (self.vert_pad - len(rows)) + rows
+        return "\n".join(rows)
 
     @staticmethod
     def downsample(x):
@@ -185,6 +194,8 @@ class QuarterBlockStyler(Styler):
     ne = "\u259D"
     sw = "\u2596"
     se = "\u2597"
+    diag = "\u259A"
+    offdiag = "\u259E"
 
     quarterblocktable = {
         (0, 0, 0, 0): " ",
@@ -193,10 +204,10 @@ class QuarterBlockStyler(Styler):
         (0, 0, 1, 1): lowerhalfblock,
         (0, 1, 0, 0): ne,
         (0, 1, 0, 1): righthalfblock,
-        (0, 1, 1, 0): "\u259E",
+        (0, 1, 1, 0): offdiag,
         (0, 1, 1, 1): "\u259F",
         (1, 0, 0, 0): nw,
-        (1, 0, 0, 1): "\u259A",
+        (1, 0, 0, 1): diag,
         (1, 0, 1, 0): lefthalfblock,
         (1, 0, 1, 1): "\u2599",
         (1, 1, 0, 0): upperhalfblock,
@@ -255,7 +266,7 @@ if __name__ == "__main__":
     else:
         fig = Figure()
         paths = [path for path in args.files if os.path.isfile(path)]
-        styles = ["*", "#", "o", "-"]
+        styles = ["quarter-block", "*", "#", "o"]
         for path, style in zip(paths, styles):
             data = np.loadtxt(path)
 
