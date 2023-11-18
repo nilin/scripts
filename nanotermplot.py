@@ -40,9 +40,6 @@ class Figure:
         if Y is None:
             X, Y = np.arange(len(X)), X
 
-        X = self.downsample(X)
-        Y = self.downsample(Y)
-
         self.plots.append((X, Y, style))
         self.labels.append(label)
 
@@ -53,10 +50,28 @@ class Figure:
         else:
             styler = Styler(style)
 
+        X, Y = self.downsample(X, Y)
         sparse_plot = self.get_sparse_plot(X, Y, styler)
         for (i, j), pixel in sparse_plot:
             if i >= 0 and i < self.h and j >= 0 and j < self.w:
                 self.grid[i][j] = styler.update_pixel(pixel, self.grid[i][j])
+
+    def thinning_and_connect(self, X, Y, xlim, ylim, eps=0.01):
+        XY = np.stack([X, Y], axis=1)
+        p0 = XY[0]
+        dx = xlim[1] - xlim[0]
+        dy = ylim[1] - ylim[0]
+        metric = np.array([dx**2, dy**2])
+        XY_out = [p0[None, :]]
+        for p in XY[1:]:
+            reldist = np.sum((p - p0) ** 2 / metric)
+            if reldist > eps**2:
+                t_ = np.arange(0, 1, max(0.01, eps**2 / reldist))
+                XY_out.append(p0[None, :] + t_[:, None] * (p - p0)[None, :])
+                XY_out.append(p[None, :])
+                p0 = p
+        XY_out = np.concatenate(XY_out, axis=0)
+        return XY_out[:, 0], XY_out[:, 1]
 
     def get_sparse_plot(self, X, Y, styler):
         out = []
@@ -67,6 +82,8 @@ class Figure:
         indices = np.where(np.isfinite(X) * np.isfinite(Y))
         X = X[indices]
         Y = Y[indices]
+
+        X, Y = self.thinning_and_connect(X, Y, xlim, ylim)
 
         for x, y in zip(X, Y):
             i, j, di, dj = self.getpos(x, y, xlim, ylim)
@@ -149,12 +166,31 @@ class Figure:
         return xlim
 
     def set_lims(self):
+        """If one limit is set, we restrict the data accordingly
+        to calcule the other limit."""
+
+        if self.xlim is not None:
+            self.plots = [
+                (*self.restrict(X, Y, lim=self.xlim, axis=0), style)
+                for X, Y, style in self.plots
+            ]
+        if self.ylim is not None:
+            self.plots = [
+                (*self.restrict(X, Y, lim=self.ylim, axis=1), style)
+                for X, Y, style in self.plots
+            ]
+
         self.xlim = self.get_lim(
             [plot[0] for plot in self.plots], lim=self.xlim, scale=self.xscale
         )
         self.ylim = self.get_lim(
             [plot[1] for plot in self.plots], lim=self.ylim, scale=self.yscale
         )
+
+    def restrict(self, *Xs, lim, axis=0):
+        X = Xs[axis]
+        indices = np.where((X >= lim[0]) * (X <= lim[1]))
+        return [X[indices] for X in Xs]
 
     def legend(self):
         rows = []
@@ -168,16 +204,18 @@ class Figure:
         return "\n".join(rows)
 
     @staticmethod
-    def downsample(x):
-        resolution = 10000
+    def downsample(x, y):
+        resolution = 1000
         if len(x) < 5 * resolution:
-            return x
+            return x, y
 
         blocksize = len(x) // resolution
         cutoff = resolution * blocksize
         x = np.reshape(x[:cutoff], (resolution, blocksize))
         x = np.mean(x, axis=1)
-        return x
+        y = np.reshape(y[:cutoff], (resolution, blocksize))
+        y = np.mean(y, axis=1)
+        return x, y
 
     @staticmethod
     def max(x, y):
