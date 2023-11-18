@@ -2,6 +2,8 @@ import numpy as np
 import math
 import os
 import argparse
+from typing import List
+from bisect import bisect_left, bisect_right
 
 
 def ndigits(x):
@@ -11,26 +13,25 @@ def ndigits(x):
 class Plot:
     X: np.ndarray
     Y: np.ndarray
-    isstart: np.ndarray
     label: str
-    styler: "Styler"
+    stylizer: "Stylizer"
 
     def __init__(self, X, Y, style="quarter-square", label="") -> None:
         self.X = X
         self.Y = Y
         self.label = label
-        self.isstart = np.zeros(len(X), dtype=bool)
-        self.isstart[0] = True
         if style == "quarter-block":
-            self.styler = QuarterBlockStyler()
+            self.stylizer = QuarterBlockStylizer()
         else:
-            self.styler = Styler(style)
+            self.stylizer = Stylizer(style)
 
     def render(self, fig):
+        self.reparameterize(fig)
+
         sparse_plot = self.get_sparse_plot(fig)
         for (i, j), pixel in sparse_plot:
             if i >= 0 and i < fig.h and j >= 0 and j < fig.w:
-                fig.grid[i][j] = self.styler.update_pixel(pixel, fig.grid[i][j])
+                fig.grid[i][j] = self.stylizer.update_pixel(pixel, fig.grid[i][j])
 
     def get_sparse_plot(self, fig):
         out = []
@@ -44,12 +45,72 @@ class Plot:
 
         for x, y in zip(X, Y):
             i, j, di, dj = fig.getpos(x, y, xlim, ylim)
-            out.append(((i, j), self.styler.get_initial_pixel(di, dj)))
+            out.append(((i, j), self.stylizer.get_initial_pixel(di, dj)))
         return out
+
+    def delnan(self):
+        mask = np.isfinite(self.X) * np.isfinite(self.Y)
+        self.restrict(mask)
+
+    def restrict(self, mask):
+        self.X = self.X[mask]
+        self.Y = self.Y[mask]
+
+    def restrict_x(self, xlim):
+        xlim = self.expand_lim(xlim)
+        mask = (self.X >= xlim[0]) * (self.X <= xlim[1])
+        self.restrict(mask)
+
+    def restrict_y(self, ylim):
+        ylim = self.expand_lim(ylim)
+        mask = (self.Y >= ylim[0]) * (self.Y <= ylim[1])
+        self.restrict(mask)
+
+    def expand_lim(self, lim, delta=1.0):
+        lim = np.array(lim)
+        return (1 + delta) * lim - delta * np.mean(lim)
+
+    def reparameterize(self, fig, res_small=1000, k_interpolation=10):
+        dwdx = fig.w / (fig.xlim[1] - fig.xlim[0])
+        dhdy = fig.h / (fig.ylim[1] - fig.ylim[0])
+
+        dx = self.X[1:] - self.X[:-1]
+        dy = self.Y[1:] - self.Y[:-1]
+
+        dw = dwdx * dx
+        dh = dhdy * dy
+
+        t = np.cumsum(np.sqrt(dw**2 + dh**2))
+        t = t / t[-1]
+
+        indices = self.get_inverse(t, res_small)
+        self.X = np.array(list(self.blockwise_mean(self.X, indices)))
+        self.Y = np.array(list(self.blockwise_mean(self.Y, indices)))
+        self.delnan()
+
+        self.X = self.interpolate(self.X, k_interpolation)
+        self.Y = self.interpolate(self.Y, k_interpolation)
+
+    def get_inverse(self, t, resolution=1000):
+        indices = [bisect_left(t, i) for i in np.arange(0, 1, 1 / resolution)] + [
+            len(t)
+        ]
+        return np.array(indices, dtype=int)
+
+    def blockwise_mean(self, X, indices):
+        for a, b in zip(indices[:-1], indices[1:]):
+            yield np.mean(X[a:b])
+
+    def interpolate(self, X, k):
+        t = np.arange(0, 1, 1 / k)
+        X0 = X[:-1]
+        X1 = X[1:]
+        table = X1[:, None] * t[None, :] + X0[:, None] * (1 - t[None, :])
+        return np.reshape(table, (-1,))
 
 
 class Figure:
-    plots = []
+    plots: List[Plot] = []
     xscale: str = "linear"
     yscale: str = "linear"
     xlim = None
@@ -108,7 +169,7 @@ class Figure:
             i, _, t, _ = self.getpos(0, y, (0, 1), ylim)
 
             if i >= 0 and i < self.h:
-                label += " " + HorizontalStyler.get_hline(t) * 3 + " "
+                label += " " + HorizontalStylizer.get_hline(t) * 3 + " "
                 self.lbar[i] = " " * (barwidth - len(label)) + label[-barwidth:]
 
     def show(self):
@@ -160,6 +221,13 @@ class Figure:
     def set_lims(self):
         """If one limit is set, we restrict the data accordingly
         to calcule the other limit."""
+        if self.xlim is not None:
+            for plot in self.plots:
+                plot.restrict_x(self.xlim)
+
+        if self.ylim is not None:
+            for plot in self.plots:
+                plot.restrict_y(self.ylim)
 
         self.xlim = self.get_lim(
             [plot.X for plot in self.plots], lim=self.xlim, scale=self.xscale
@@ -167,10 +235,13 @@ class Figure:
         self.ylim = self.get_lim(
             [plot.Y for plot in self.plots], lim=self.ylim, scale=self.yscale
         )
+        for plot in self.plots:
+            plot.restrict_x(self.xlim)
+            plot.restrict_y(self.ylim)
 
     def legend(self):
         items = ["legend:"] + [
-            f"{plot.styler.legend} {plot.label}" for plot in self.plots
+            f"{plot.stylizer.legend} {plot.label}" for plot in self.plots
         ]
         rows = [self.hori_pad * " " + (5 * " ").join(items) + " "]
 
@@ -204,7 +275,7 @@ class Figure:
         return [x for n in tenticks for x in [n, 2 * n, 5 * n]]
 
 
-class Styler:
+class Stylizer:
     def __init__(self, style=None):
         self.style = style
         self.legend = style * 5
@@ -216,7 +287,7 @@ class Styler:
         return new
 
 
-class QuarterBlockStyler(Styler):
+class QuarterBlockStylizer(Stylizer):
     lowerhalfblock = "\u2584"
     upperhalfblock = "\u2580"
     lefthalfblock = "\u258C"
@@ -269,7 +340,7 @@ class QuarterBlockStyler(Styler):
         return self.quarterblocktable[_max(keys[new], keys[prev])]
 
 
-class HorizontalStyler(Styler):
+class HorizontalStylizer(Stylizer):
     def get_initial_pixel(self, di, dj):
         return self.get_hline(di)
 
