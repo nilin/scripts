@@ -8,9 +8,48 @@ def ndigits(x):
     return math.floor(1 + math.log(x) / math.log(10))
 
 
+class Plot:
+    X: np.ndarray
+    Y: np.ndarray
+    isstart: np.ndarray
+    label: str
+    styler: "Styler"
+
+    def __init__(self, X, Y, style="quarter-square", label="") -> None:
+        self.X = X
+        self.Y = Y
+        self.label = label
+        self.isstart = np.zeros(len(X), dtype=bool)
+        self.isstart[0] = True
+        if style == "quarter-block":
+            self.styler = QuarterBlockStyler()
+        else:
+            self.styler = Styler(style)
+
+    def render(self, fig):
+        sparse_plot = self.get_sparse_plot(fig)
+        for (i, j), pixel in sparse_plot:
+            if i >= 0 and i < fig.h and j >= 0 and j < fig.w:
+                fig.grid[i][j] = self.styler.update_pixel(pixel, fig.grid[i][j])
+
+    def get_sparse_plot(self, fig):
+        out = []
+        xlim = fig.transform_x(fig.xlim)
+        ylim = fig.transform_y(fig.ylim)
+        X = fig.transform_x(self.X)
+        Y = fig.transform_y(self.Y)
+        indices = np.where(np.isfinite(X) * np.isfinite(Y))
+        X = X[indices]
+        Y = Y[indices]
+
+        for x, y in zip(X, Y):
+            i, j, di, dj = fig.getpos(x, y, xlim, ylim)
+            out.append(((i, j), self.styler.get_initial_pixel(di, dj)))
+        return out
+
+
 class Figure:
     plots = []
-    labels = []
     xscale: str = "linear"
     yscale: str = "linear"
     xlim = None
@@ -40,54 +79,7 @@ class Figure:
         if Y is None:
             X, Y = np.arange(len(X)), X
 
-        self.plots.append((X, Y, style))
-        self.labels.append(label)
-
-    def renderplot(self, X, Y, style):
-        if style == "quarter-block":
-            styler = QuarterBlockStyler()
-        else:
-            styler = Styler(style)
-
-        X, Y = self.downsample(X, Y)
-        sparse_plot = self.get_sparse_plot(X, Y, styler)
-        for (i, j), pixel in sparse_plot:
-            if i >= 0 and i < self.h and j >= 0 and j < self.w:
-                self.grid[i][j] = styler.update_pixel(pixel, self.grid[i][j])
-
-    def thinning_and_connect(self, X, Y, xlim, ylim, eps=0.002):
-        XY = np.stack([X, Y], axis=1)
-        p0 = XY[0]
-        dx = xlim[1] - xlim[0]
-        dy = ylim[1] - ylim[0]
-        metric = np.array([dx**2, dy**2])
-        XY_out = [p0[None, :]]
-        for p in XY[1:]:
-            reldist = np.sum((p - p0) ** 2 / metric)
-            if reldist > eps**2:
-                t_ = np.arange(0, 1, max(0.001, eps**2 / reldist))
-                XY_out.append(p0[None, :] + t_[:, None] * (p - p0)[None, :])
-                XY_out.append(p[None, :])
-                p0 = p
-        XY_out = np.concatenate(XY_out, axis=0)
-        return XY_out[:, 0], XY_out[:, 1]
-
-    def get_sparse_plot(self, X, Y, styler):
-        out = []
-        xlim = self.transform_x(self.xlim)
-        ylim = self.transform_y(self.ylim)
-        X = self.transform_x(X)
-        Y = self.transform_y(Y)
-        indices = np.where(np.isfinite(X) * np.isfinite(Y))
-        X = X[indices]
-        Y = Y[indices]
-
-        X, Y = self.thinning_and_connect(X, Y, xlim, ylim)
-
-        for x, y in zip(X, Y):
-            i, j, di, dj = self.getpos(x, y, xlim, ylim)
-            out.append(((i, j), styler.get_initial_pixel(di, dj)))
-        return out
+        self.plots.append(Plot(X, Y, style=style, label=label))
 
     def transform_x(self, X):
         X = np.array(X)
@@ -121,8 +113,8 @@ class Figure:
 
     def show(self):
         self.set_lims()
-        for X, Y, style in self.plots:
-            self.renderplot(X, Y, style)
+        for plot in self.plots:
+            plot.render(self)
 
         self.render_y_ticks()
 
@@ -169,77 +161,23 @@ class Figure:
         """If one limit is set, we restrict the data accordingly
         to calcule the other limit."""
 
-        if self.xlim is not None:
-            self.restrict_x()
-        if self.ylim is not None:
-            self.restrict_y()
-
         self.xlim = self.get_lim(
-            [plot[0] for plot in self.plots], lim=self.xlim, scale=self.xscale
+            [plot.X for plot in self.plots], lim=self.xlim, scale=self.xscale
         )
         self.ylim = self.get_lim(
-            [plot[1] for plot in self.plots], lim=self.ylim, scale=self.yscale
+            [plot.Y for plot in self.plots], lim=self.ylim, scale=self.yscale
         )
-        self.restrict_x()
-        self.restrict_y()
-
-    def restrict(self, *Xs, lim, axis=0):
-        X = Xs[axis]
-        indices = np.where((X >= lim[0]) * (X <= lim[1]))
-        return [X[indices] for X in Xs]
-
-    def restrict_x(self):
-        self.plots = [
-            (*self.restrict(X, Y, lim=self.xlim, axis=0), style)
-            for X, Y, style in self.plots
-        ]
-
-    def restrict_y(self):
-        self.plots = [
-            (*self.restrict(X, Y, lim=self.ylim, axis=1), style)
-            for X, Y, style in self.plots
-        ]
 
     def legend(self):
-        rows = []
-        for (X, Y, style), label in zip(self.plots, self.labels):
-            if style == "quarter-block":
-                style = QuarterBlockStyler.diag
-            rows.append(self.hori_pad * " " + f"{style} {label}")
-        rows.append("")
+        items = ["legend:"] + [
+            f"{plot.styler.legend} {plot.label}" for plot in self.plots
+        ]
+        rows = [self.hori_pad * " " + (5 * " ").join(items) + " "]
+
         if len(rows) < self.vert_pad:
             rows = [""] * (self.vert_pad - len(rows)) + rows
+
         return "\n".join(rows)
-
-    @staticmethod
-    def downsample(x, y):
-        resolution = 1000
-        if len(x) < 5 * resolution:
-            return x, y
-
-        blocksize = len(x) // resolution
-        cutoff = resolution * blocksize
-        x = np.reshape(x[:cutoff], (resolution, blocksize))
-        x = np.mean(x, axis=1)
-        y = np.reshape(y[:cutoff], (resolution, blocksize))
-        y = np.mean(y, axis=1)
-        return x, y
-
-    @staticmethod
-    def max(x, y):
-        if x is None:
-            return y
-        if y is None:
-            return x
-        return max(x, y)
-
-    @staticmethod
-    def min(x, y):
-        if x is None:
-            return y
-        if y is None:
-            return x
-        return min(x, y)
 
     @staticmethod
     def get_linear_ticks(a, b):
@@ -269,6 +207,7 @@ class Figure:
 class Styler:
     def __init__(self, style=None):
         self.style = style
+        self.legend = style * 5
 
     def get_initial_pixel(self, di, dj):
         return self.style
@@ -308,6 +247,7 @@ class QuarterBlockStyler(Styler):
         (1, 1, 1, 0): "\u259B",
         (1, 1, 1, 1): block,
     }
+    legend = lowerhalfblock * 2 + upperhalfblock * 3
 
     def __init__(self):
         self.quarterblock_keys = {c: k for k, c in self.quarterblocktable.items()}
