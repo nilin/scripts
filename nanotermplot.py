@@ -16,7 +16,7 @@ class Plot:
     label: str
     stylizer: "Stylizer"
 
-    def __init__(self, X, Y, style="quarter-square", label="") -> None:
+    def __init__(self, X, Y, style="quarter-block", label="") -> None:
         self.X = X
         self.Y = Y
         self.label = label
@@ -70,7 +70,7 @@ class Plot:
         lim = np.array(lim)
         return (1 + delta) * lim - delta * np.mean(lim)
 
-    def reparameterize(self, fig, res_small=1000, res_final=5000):
+    def reparameterize(self, fig, res_small=1000, res_final=10000):
         dwdx = fig.w / (fig.xlim[1] - fig.xlim[0])
         dhdy = fig.h / (fig.ylim[1] - fig.ylim[0])
 
@@ -365,11 +365,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     def test(fig):
-        x = np.arange(-1, 1, 0.001)
-        y = x
+        x = np.arange(-1.0, 1.0, 0.001)
+        y = 8 * x**4 - 8 * x**2 + 1
         z = 16 * x**5 - 20 * x**3 + 5 * x
-        fig.plot(x, z, label="y", style="quarter-block")
-        fig.plot(x, y, style="#", label="z")
+        fig.plot(x, z, label="y", style="#")
+        fig.plot(x, y, style="quarter-block", label="z")
 
     fig = Figure()
 
