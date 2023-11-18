@@ -44,7 +44,6 @@ class Figure:
         self.labels.append(label)
 
     def renderplot(self, X, Y, style):
-        self.set_lims()
         if style == "quarter-block":
             styler = QuarterBlockStyler()
         else:
@@ -66,7 +65,7 @@ class Figure:
         for p in XY[1:]:
             reldist = np.sum((p - p0) ** 2 / metric)
             if reldist > eps**2:
-                t_ = np.arange(0, 1, max(0.01, eps**2 / reldist))
+                t_ = np.arange(0, 1, max(0.001, eps**2 / reldist))
                 XY_out.append(p0[None, :] + t_[:, None] * (p - p0)[None, :])
                 XY_out.append(p[None, :])
                 p0 = p
@@ -121,6 +120,7 @@ class Figure:
                 self.lbar[i] = " " * (barwidth - len(label)) + label[-barwidth:]
 
     def show(self):
+        self.set_lims()
         for X, Y, style in self.plots:
             self.renderplot(X, Y, style)
 
@@ -170,15 +170,9 @@ class Figure:
         to calcule the other limit."""
 
         if self.xlim is not None:
-            self.plots = [
-                (*self.restrict(X, Y, lim=self.xlim, axis=0), style)
-                for X, Y, style in self.plots
-            ]
+            self.restrict_x()
         if self.ylim is not None:
-            self.plots = [
-                (*self.restrict(X, Y, lim=self.ylim, axis=1), style)
-                for X, Y, style in self.plots
-            ]
+            self.restrict_y()
 
         self.xlim = self.get_lim(
             [plot[0] for plot in self.plots], lim=self.xlim, scale=self.xscale
@@ -186,11 +180,25 @@ class Figure:
         self.ylim = self.get_lim(
             [plot[1] for plot in self.plots], lim=self.ylim, scale=self.yscale
         )
+        self.restrict_x()
+        self.restrict_y()
 
     def restrict(self, *Xs, lim, axis=0):
         X = Xs[axis]
         indices = np.where((X >= lim[0]) * (X <= lim[1]))
         return [X[indices] for X in Xs]
+
+    def restrict_x(self):
+        self.plots = [
+            (*self.restrict(X, Y, lim=self.xlim, axis=0), style)
+            for X, Y, style in self.plots
+        ]
+
+    def restrict_y(self):
+        self.plots = [
+            (*self.restrict(X, Y, lim=self.ylim, axis=1), style)
+            for X, Y, style in self.plots
+        ]
 
     def legend(self):
         rows = []
@@ -205,7 +213,7 @@ class Figure:
 
     @staticmethod
     def downsample(x, y):
-        resolution = 1000
+        resolution = 5000
         if len(x) < 5 * resolution:
             return x, y
 
@@ -348,8 +356,8 @@ if __name__ == "__main__":
         x = np.arange(-1, 1, 0.001)
         y = x
         z = 16 * x**5 - 20 * x**3 + 5 * x
-        fig.plot(z, label="y", style="quarter-block")
-        fig.plot(y, style="#", label="z")
+        fig.plot(x, z, label="y", style="quarter-block")
+        fig.plot(x, y, style="#", label="z")
 
     fig = Figure()
 
