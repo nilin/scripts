@@ -366,10 +366,10 @@ if __name__ == "__main__":
 
     def test(fig):
         x = np.arange(-1.0, 1.0, 0.001)
-        y = 8 * x**4 - 8 * x**2 + 1
-        z = 16 * x**5 - 20 * x**3 + 5 * x
-        fig.plot(x, z, label="y", style="#")
-        fig.plot(x, y, style="quarter-block", label="z")
+        T4 = 8 * x**4 - 8 * x**2 + 1
+        T5 = 16 * x**5 - 20 * x**3 + 5 * x
+        fig.plot(x, T5, label="T5", style="#")
+        fig.plot(x, T4, style="quarter-block", label="T4")
 
     fig = Figure()
 
