@@ -198,8 +198,8 @@ class Figure:
         if step > 0.99:
             step = round(step)
 
-        a = round(a / step) * step
-        b = round(b / step) * step
+        a = math.floor(a / step) * step
+        b = math.ceil(b / step) * step
         return np.arange(a, b, step)
 
     @staticmethod
