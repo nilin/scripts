@@ -1,8 +1,3 @@
-"""
-nilin
-"""
-
-
 import numpy as np
 import math
 import sys
@@ -19,9 +14,9 @@ class Figure:
     labels = []
     xscale: str = "linear"
     yscale: str = "linear"
-    xlim = (None, None)
-    ylim = (None, None)
-    hori_pad: int = 20
+    xlim = None
+    ylim = None
+    hori_pad: int = 30
     vert_pad: int = 10
 
     def __init__(self, h=None, w=None):
@@ -50,9 +45,9 @@ class Figure:
 
         self.plots.append((X, Y, style))
         self.labels.append(label)
-        self.update_lims(X, Y)
 
     def renderplot(self, X, Y, style):
+        self.set_lims()
         if style == "quarter-block":
             styler = QuarterBlockStyler()
         else:
@@ -65,20 +60,47 @@ class Figure:
 
     def get_sparse_plot(self, X, Y, styler):
         out = []
+        xlim = self.transform_x(self.xlim)
+        ylim = self.transform_y(self.ylim)
+        X = self.transform_x(X)
+        Y = self.transform_y(Y)
+        indices = np.where(np.isfinite(X) * np.isfinite(Y))
+        X = X[indices]
+        Y = Y[indices]
+
         for x, y in zip(X, Y):
-            i, j, di, dj = self.getpos(*self.transform(x, y, self.xlim, self.ylim))
+            i, j, di, dj = self.getpos(x, y, xlim, ylim)
             out.append(((i, j), styler.get_initial_pixel(di, dj)))
         return out
 
+    def transform_x(self, X):
+        X = np.array(X)
+        if self.xscale == "log":
+            return np.log(X)
+        else:
+            return X
+
+    def transform_y(self, Y):
+        Y = np.array(Y)
+        if self.yscale == "log":
+            return np.log(Y)
+        else:
+            return Y
+
     def render_y_ticks(self):
         yticks = self.get_yticks()
-        labels = [f"{y:.3f} -- " for y in yticks]
+        labels = [f"{y}" for y in yticks]
         barwidth = self.hori_pad
         self.lbar = [" " * barwidth for _ in range(self.h)]
 
+        ylim = self.transform_y(self.ylim)
+        yticks = self.transform_y(yticks)
+
         for y, label in zip(yticks, labels):
-            i, _, t, _ = self.getpos(*self.transform(0, y, (0, 1), self.ylim))
+            i, _, t, _ = self.getpos(0, y, (0, 1), ylim)
+
             if i >= 0 and i < self.h:
+                label += " " + HorizontalStyler.get_hline(t) * 3 + " "
                 self.lbar[i] = " " * (barwidth - len(label)) + label[-barwidth:]
 
     def show(self):
@@ -101,24 +123,29 @@ class Figure:
             ticks = self.get_linear_ticks(*self.ylim)
         return ticks
 
-    def update_lims(self, X, Y):
-        a, b = self.xlim
-        c, d = self.ylim
+    def set_lims(self, eps=0.2):
+        x_max = max([max(X) for X, Y, style in self.plots])
+        x_min = min([min(X) for X, Y, style in self.plots])
+        y_max = max([max(Y) for X, Y, style in self.plots])
+        y_min = min([min(Y) for X, Y, style in self.plots])
 
-        self.xlim = (self.min(a, min(X)), self.max(b, max(X)))
-        self.ylim = (
-            self.min(c, min(Y) * 1.2 - max(Y) * 0.2),
-            self.max(d, max(Y) * 1.2 - min(Y) * 0.2),
-        )
+        xlim = np.array([x_min, x_max])
+        ylim = np.array([y_min, y_max])
 
-    def transform(self, x, y, xlim, ylim):
+        xlim = (1 + eps) * xlim - eps * np.mean(xlim)
+        ylim = (1 + eps) * ylim - eps * np.mean(ylim)
+
         if self.xscale == "log":
-            x = np.log(x)
-            xlim = (np.log(xlim[0]), np.log(xlim[1]))
+            xlim = np.maximum(xlim, 1e-5)
+
         if self.yscale == "log":
-            y = np.log(y)
-            ylim = (np.log(ylim[0]), np.log(ylim[1]))
-        return x, y, xlim, ylim
+            ylim = np.maximum(ylim, 1e-5)
+
+        if self.xlim is None:
+            self.xlim = xlim
+
+        if self.ylim is None:
+            self.ylim = ylim
 
     def legend(self):
         rows = []
@@ -160,17 +187,28 @@ class Figure:
         return min(x, y)
 
     @staticmethod
-    def get_linear_ticks(a, b, orderdifference=2):
-        step = 10 ** (ndigits(b - a) - orderdifference)
-        a = math.floor(a / step) * step
-        b = math.ceil(b / step) * step
+    def get_linear_ticks(a, b):
+        step = 10 ** (ndigits(b - a) - 1)
+
+        if b - a < 2 * step:
+            step /= 5
+        elif b - a < 5 * step:
+            step /= 2
+
+        if step > 0.99:
+            step = round(step)
+
+        a = round(a / step) * step
+        b = round(b / step) * step
         return np.arange(a, b, step)
 
     @staticmethod
     def get_log_ticks(a, b):
+        a = max(a, 1e-10)
         p1 = ndigits(a)
         p2 = ndigits(b)
-        return [10**p for p in range(p1, p2 + 1)]
+        tenticks = [10**p for p in range(p1, p2)]
+        return [x for n in tenticks for x in [n, 2 * n, 5 * n]]
 
 
 class Styler:
@@ -234,6 +272,20 @@ class QuarterBlockStyler(Styler):
         keys = self.quarterblock_keys
 
         return self.quarterblocktable[_max(keys[new], keys[prev])]
+
+
+class HorizontalStyler(Styler):
+    def get_initial_pixel(self, di, dj):
+        return self.get_hline(di)
+
+    @staticmethod
+    def get_hline(di):
+        lowerhalfblock = "\u2584"
+        upperhalfblock = "\u2580"
+        if di > 0:
+            return lowerhalfblock
+        else:
+            return upperhalfblock
 
 
 if __name__ == "__main__":
