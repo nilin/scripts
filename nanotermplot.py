@@ -112,46 +112,49 @@ class Figure:
         rows = [label + "".join(row) for label, row in zip(self.lbar, self.grid)]
         img = ("\n").join(rows)
 
-        print(self.legend())
-        print(img)
-        print("\n" * self.vert_pad, end="")
+        framedimg = "\n".join([self.legend(), img, "\n" * self.vert_pad])
+        print(framedimg)
+        return framedimg
 
-    def get_yticks(self):
-        if self.yscale == "log":
-            ticks = self.get_log_ticks(*self.ylim)
+    def get_ticks(self, lim, scale):
+        if scale == "log":
+            ticks = self.get_log_ticks(*lim)
         else:
-            ticks = self.get_linear_ticks(*self.ylim)
+            ticks = self.get_linear_ticks(*lim)
         return ticks
 
-    def set_lims(self, margin=0.2):
-        if self.lim_mode == "max":
-            x_max = max([max(X) for X, Y, style in self.plots])
-            x_min = min([min(X) for X, Y, style in self.plots])
-            y_max = max([max(Y) for X, Y, style in self.plots])
-            y_min = min([min(Y) for X, Y, style in self.plots])
-        if self.lim_mode == "quantile":
-            x_max = max([np.quantile(X, q=0.995) for X, Y, style in self.plots])
-            x_min = min([np.quantile(X, q=0.005) for X, Y, style in self.plots])
-            y_max = max([np.quantile(Y, q=0.995) for X, Y, style in self.plots])
-            y_min = min([np.quantile(Y, q=0.005) for X, Y, style in self.plots])
+    def get_yticks(self):
+        return self.get_ticks(self.ylim, self.yscale)
+
+    def get_xticks(self):
+        return self.get_ticks(self.xlim, self.xscale)
+
+    def get_lim(self, Xs, margin=0.2, lim_mode="quantile", scale="linear", lim=None):
+        if lim is not None:
+            return lim
+
+        if lim_mode == "max":
+            x_max = max([max(X) for X in Xs])
+            x_min = min([min(X) for X in Xs])
+        if lim_mode == "quantile":
+            x_max = max([np.quantile(X, q=0.995) for X in Xs])
+            x_min = min([np.quantile(X, q=0.005) for X in Xs])
 
         xlim = np.array([x_min, x_max])
-        ylim = np.array([y_min, y_max])
-
         xlim = (1 + margin) * xlim - margin * np.mean(xlim)
-        ylim = (1 + margin) * ylim - margin * np.mean(ylim)
 
-        if self.xscale == "log":
+        if scale == "log":
             xlim = np.maximum(xlim, 1e-5)
 
-        if self.yscale == "log":
-            ylim = np.maximum(ylim, 1e-5)
+        return xlim
 
-        if self.xlim is None:
-            self.xlim = xlim
-
-        if self.ylim is None:
-            self.ylim = ylim
+    def set_lims(self):
+        self.xlim = self.get_lim(
+            [plot[0] for plot in self.plots], lim=self.xlim, scale=self.xscale
+        )
+        self.ylim = self.get_lim(
+            [plot[1] for plot in self.plots], lim=self.ylim, scale=self.yscale
+        )
 
     def legend(self):
         rows = []
@@ -201,8 +204,8 @@ class Figure:
         elif b - a < 5 * step:
             step /= 2
 
-        if step > 0.99:
-            step = round(step)
+        factor = 10 ** (ndigits(step) - 1)
+        step = round(step / factor) * factor
 
         a = math.floor(a / step) * step
         b = math.ceil(b / step) * step
@@ -297,30 +300,23 @@ class HorizontalStyler(Styler):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--logy", action="store_true")
+    parser.add_argument("--logx", action="store_true")
     parser.add_argument("--ylim", nargs=2, type=float)
+    parser.add_argument("--xlim", nargs=2, type=float)
     parser.add_argument("--files", nargs="*", action="store")
     args = parser.parse_args()
 
-    def test():
+    def test(fig):
         x = np.arange(-1, 1, 0.001)
         y = x
         z = 16 * x**5 - 20 * x**3 + 5 * x
-
-        fig = Figure()
         fig.plot(z, label="y", style="quarter-block")
         fig.plot(y, style="#", label="z")
 
-        if args.logy:
-            fig.yscale = "log"
-
-        if args.ylim is not None:
-            fig.ylim = args.ylim
-
-        fig.show()
-        fig.legend()
+    fig = Figure()
 
     if args.files is None:
-        test()
+        test(fig)
     else:
         fig = Figure()
         paths = [path for path in args.files if os.path.isfile(path)]
@@ -335,11 +331,17 @@ if __name__ == "__main__":
             else:
                 raise ValueError("data must have 1 or 2 columns")
 
-        if args.logy:
-            fig.yscale = "log"
+    if args.logy:
+        fig.yscale = "log"
 
-        if args.ylim is not None:
-            fig.ylim = args.ylim
+    if args.logx:
+        fig.xscale = "log"
 
-        fig.show()
-        fig.legend()
+    if args.ylim is not None:
+        fig.ylim = args.ylim
+
+    if args.xlim is not None:
+        fig.xlim = args.xlim
+
+    fig.show()
+    fig.legend()
