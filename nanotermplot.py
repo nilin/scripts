@@ -1,6 +1,5 @@
 import numpy as np
 import math
-import sys
 import os
 import argparse
 
@@ -18,6 +17,7 @@ class Figure:
     ylim = None
     hori_pad: int = 30
     vert_pad: int = 10
+    lim_mode: str = "quantile"
 
     def __init__(self, h=None, w=None):
         if h is None:
@@ -123,17 +123,23 @@ class Figure:
             ticks = self.get_linear_ticks(*self.ylim)
         return ticks
 
-    def set_lims(self, eps=0.2):
-        x_max = max([max(X) for X, Y, style in self.plots])
-        x_min = min([min(X) for X, Y, style in self.plots])
-        y_max = max([max(Y) for X, Y, style in self.plots])
-        y_min = min([min(Y) for X, Y, style in self.plots])
+    def set_lims(self, margin=0.2):
+        if self.lim_mode == "max":
+            x_max = max([max(X) for X, Y, style in self.plots])
+            x_min = min([min(X) for X, Y, style in self.plots])
+            y_max = max([max(Y) for X, Y, style in self.plots])
+            y_min = min([min(Y) for X, Y, style in self.plots])
+        if self.lim_mode == "quantile":
+            x_max = max([np.quantile(X, q=0.995) for X, Y, style in self.plots])
+            x_min = min([np.quantile(X, q=0.005) for X, Y, style in self.plots])
+            y_max = max([np.quantile(Y, q=0.995) for X, Y, style in self.plots])
+            y_min = min([np.quantile(Y, q=0.005) for X, Y, style in self.plots])
 
         xlim = np.array([x_min, x_max])
         ylim = np.array([y_min, y_max])
 
-        xlim = (1 + eps) * xlim - eps * np.mean(xlim)
-        ylim = (1 + eps) * ylim - eps * np.mean(ylim)
+        xlim = (1 + margin) * xlim - margin * np.mean(xlim)
+        ylim = (1 + margin) * ylim - margin * np.mean(ylim)
 
         if self.xscale == "log":
             xlim = np.maximum(xlim, 1e-5)
@@ -160,7 +166,7 @@ class Figure:
 
     @staticmethod
     def downsample(x):
-        resolution = 1000
+        resolution = 10000
         if len(x) < 5 * resolution:
             return x
 
