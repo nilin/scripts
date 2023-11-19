@@ -93,9 +93,7 @@ class Plot:
         self.Y = self.interpolate(self.Y, k_interpolation)
 
     def get_inverse(self, t, resolution=1000):
-        indices = [bisect_left(t, i) for i in np.arange(0, 1, 1 / resolution)] + [
-            len(t)
-        ]
+        indices = [bisect_left(t, i) for i in np.arange(0, 1, 1 / resolution)] + [len(t)]
         return np.array(indices, dtype=int)
 
     def blockwise_mean(self, X, indices):
@@ -241,9 +239,7 @@ class Figure:
             plot.restrict_y(self.ylim)
 
     def legend(self):
-        items = ["legend:"] + [
-            f"{plot.stylizer.legend} {plot.label}" for plot in self.plots
-        ]
+        items = ["legend:"] + [f"{plot.stylizer.legend} {plot.label}" for plot in self.plots]
         rows = [self.hori_pad * " " + (5 * " ").join(items) + " "]
 
         if len(rows) < self.vert_pad:
@@ -362,7 +358,7 @@ if __name__ == "__main__":
     parser.add_argument("--ylim", nargs=2, type=float)
     parser.add_argument("--xlim", nargs=2, type=float)
     parser.add_argument("--files", nargs="*", action="store")
-    args = parser.parse_args()
+    args, unknown = parser.parse_known_args()
 
     def test(fig):
         x = np.arange(-1.0, 1.0, 0.001)
@@ -385,9 +381,10 @@ if __name__ == "__main__":
             if len(data.shape) == 1:
                 fig.plot(data, style=style, label=path)
             elif len(data.shape) == 2:
-                fig.plot(data[:, 0], data[:, 1], style=style, label=path)
-            else:
-                raise ValueError("data must have 1 or 2 columns")
+                if data.shape[1] == 2:
+                    fig.plot(data[:, 0], data[:, 1], style=style, label=path)
+                else:
+                    fig.plot(data[:, -1], style=style, label=path)
 
     if args.logy:
         fig.yscale = "log"
