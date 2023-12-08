@@ -1,4 +1,5 @@
 import time
+import datetime
 import os
 import threading
 import sys
@@ -30,6 +31,14 @@ class Timer:
             with open(name, 'a') as f:
                 f.write(str(dt)+'\n')
         print(f'Saved splits to \n{name}')
+        return name
+
+    @staticmethod
+    def print_total_time(name):
+        with open(name, 'r') as f:
+            intervals=[float(line.strip()) for line in f]
+        T=sum(intervals)
+        print(f'Total time\n'+str(datetime.timedelta(seconds=T)))
 
 if __name__ == '__main__':
 
@@ -43,7 +52,8 @@ if __name__ == '__main__':
         if fn=='q':
             break
         elif fn!='':
-            Timer.save_time(intervals,fn)
+            name=Timer.save_time(intervals,fn)
+            Timer.print_total_time(name)
             break
 
         timer.start()
