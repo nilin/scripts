@@ -22,8 +22,8 @@ import config
 
 #target_type='kingdom'
 #target_type='phylum'
-#target_type='order'
-target_type='full'
+target_type='order'
+#target_type='full'
 
 
 depth=19
@@ -36,7 +36,7 @@ os.makedirs(outdir,exist_ok=True)
 
 device = torch.device('cuda')
 num_epochs = 100
-learning_rate = .0001
+learning_rate = .001
 input_size=224
 
 # Data augmentation and normalization for training
@@ -76,46 +76,27 @@ train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=50,
 criterion = nn.CrossEntropyLoss()
 total_step = len(train_loader)
 
-try:
-    # load previous checkpoint
-    traindata=torch.load(
-        os.path.join(outdir,'checkpoint.pth')
-        )
-    model=traindata['model'].to(device).eval()
-    optimizer = torch.optim.SGD(model.parameters(), lr=1e-4, weight_decay=1e-4)
-except Exception as e:
-    print('starting from scratch')
-    os.makedirs(outdir,exist_ok=True)
-    # first run
-    if depth==11:
-        model = models.vgg11(weights=None, num_classes=num_classes).to(device)
-    if depth==16:
-        model = models.vgg16(weights=None, num_classes=num_classes).to(device)
-    if depth==19:
-        model = models.vgg19(weights=None, num_classes=num_classes).to(device)
-    optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, momentum=0.9, weight_decay=1e-4)
-    start_epoch=0
+os.makedirs(outdir,exist_ok=True)
+# first run
+if depth==11:
+    model = models.vgg11(weights=None, num_classes=num_classes).to(device)
+if depth==16:
+    model = models.vgg16(weights=None, num_classes=num_classes).to(device)
+if depth==19:
+    model = models.vgg19(weights=None, num_classes=num_classes).to(device)
+optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9, weight_decay=1e-4)
+start_epoch=0
 
 def unpack(a):
     try: return a.item()
     except: return a
 
-maxlabel=0
 
 for epoch in range(start_epoch, num_epochs):
-
     for i, (images, labels) in enumerate(train_loader):
-
-        batchmax=int(torch.max(labels))
-        maxlabel=np.maximum(maxlabel,batchmax)
-        #print(batchmax)
-        #print(maxlabel)
 
         images = images.to(device)
         labels = labels.to(device)
-        #breakpoint()
-
-        #print(labels)
         
         # Forward pass
         outputs = model(images)
@@ -126,12 +107,12 @@ for epoch in range(start_epoch, num_epochs):
         loss.backward()
         optimizer.step()
 
-        #losses.append(loss.item())
+        stats=f"epoch {epoch+1} i {i+1} loss {loss.item()} learning_rate {learning_rate}"
+
         with open(os.path.join(outdir,'loss.txt'),'a') as f:
-            f.write(f"{loss.item()}\n")
+            f.write(stats+"\n")
         
-        if (i+1) % 2 == 0:
-            stats='Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'.format(epoch+1, num_epochs, i+1, total_step, loss.item())
+        if (i+1) % 10 == 0:
             print(stats)
 
         if (i+1)%100==0:
