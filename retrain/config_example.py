@@ -1,0 +1,2 @@
+datapath="data"
+outdir="train"

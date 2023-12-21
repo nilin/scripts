@@ -11,28 +11,40 @@ import torchvision
 import torchvision.transforms as transforms
 from torchvision import models
 import time
-import shutil
 import os
-import numpy as np
-import sys
-import argparse
-
 import config
+import argparse
+import json
 
 
-#target_type='kingdom'
-#target_type='phylum'
-target_type='order'
-#target_type='full'
+parser = argparse.ArgumentParser()
+parser.add_argument('--depth', type=int, default=19)
+parser.add_argument('--datasetname', type=str, default='food101')
+parser.add_argument('--iNat_target_type', type=str, default='order')
+parser.add_argument('--batchsize', type=int, default=100)
+args = parser.parse_args()
+
+depth=args.depth
+datasetname=args.datasetname
+iNat_target_type=args.iNat_target_type
+batchsize=args.batchsize
+
+def get_num_classes():
+    if "iNaturalist" in datasetname:
+        return {'kingdom':3,'phylum':13,'full':10000,'order':300}[iNat_target_type]
+    if datasetname=="food101":
+        return 101
+    
+def get_dataset_info():
+    if "iNaturalist" in datasetname:
+        return f"{datasetname}_{iNat_target_type}"
+    if datasetname=="food101":
+        return datasetname
 
 
-depth=19
-_num_classes_={'kingdom':3,'phylum':13,'full':10000,'order':300}
-num_classes=_num_classes_[target_type]
 
-outdir=f'{config.outdir}/{depth}_trained_on_{target_type}'
+outdir=f'{config.outdir}/{depth}_trained_on_{get_dataset_info()}'
 os.makedirs(outdir,exist_ok=True)
-
 
 device = torch.device('cuda')
 num_epochs = 100
@@ -53,14 +65,27 @@ data_transforms = {
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                 std=[0.229, 0.224, 0.225])
 
-def getdataset(download):
-    return torchvision.datasets.INaturalist(root=config.datapath,
-                                            #version='2021_train',
-                                            version='2021_train_mini',
-                                            target_type=target_type,
-                                            transform=data_transforms['train'],
-                                            download=download,
-                                            )
+def getdataset(datasetname,download):
+    match datasetname:
+        case 'iNaturalist_full':
+            return torchvision.datasets.INaturalist(root=config.datapath,
+                                                    version='2021_train',
+                                                    target_type=target_type,
+                                                    transform=data_transforms['train'],
+                                                    download=download,
+                                                    )
+        case 'iNaturalist_mini':
+            return torchvision.datasets.INaturalist(root=config.datapath,
+                                                    version='2021_train_mini',
+                                                    target_type=target_type,
+                                                    transform=data_transforms['train'],
+                                                    download=download,
+                                                    )
+        case 'food101':
+            return torchvision.datasets.Food101(root=config.datapath,
+                                                    transform=data_transforms['train'],
+                                                    download=download,
+                                                    )
 
 try:
     # load previously downloaded dataset
@@ -70,14 +95,19 @@ except Exception as e:
     train_dataset=getdataset(True)
 
 
-
 torch.manual_seed(0)
-train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=50, shuffle=True)
+train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batchsize, shuffle=True)
 criterion = nn.CrossEntropyLoss()
 total_step = len(train_loader)
 
 os.makedirs(outdir,exist_ok=True)
+with open(os.path.join(outdir,'config.json'),'w') as f:
+    json.dump(vars(args),f,indent=4)
+
+
 # first run
+
+num_classes=get_num_classes()
 if depth==11:
     model = models.vgg11(weights=None, num_classes=num_classes).to(device)
 if depth==16:

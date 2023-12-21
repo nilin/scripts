@@ -22,7 +22,7 @@ class Timer:
         while self.running:
             dt=time.time() - self.start_time
             print(f"   {dt:.2f}", end='\r')
-            time.sleep(.001)
+            time.sleep(.01)
         sys.exit()
 
     def get_time_till_Enter(self):
@@ -44,7 +44,6 @@ class Timer:
 if __name__ == '__main__':
 
     timer=Timer()
-    intervals=[]
 
     while True:
         timer.print_total_time()
@@ -54,8 +53,8 @@ if __name__ == '__main__':
         if fn=='q':
             break
         elif fn!='':
-            name=Timer.save_time(intervals,fn)
-            Timer.print_total_time(name)
+            name=timer.save_time(fn)
+            timer.print_total_time()
             break
 
         timer.start()
