@@ -70,14 +70,14 @@ def getdataset(datasetname,download):
         case 'iNaturalist_full':
             return torchvision.datasets.INaturalist(root=config.datapath,
                                                     version='2021_train',
-                                                    target_type=target_type,
+                                                    target_type=iNat_target_type,
                                                     transform=data_transforms['train'],
                                                     download=download,
                                                     )
         case 'iNaturalist_mini':
             return torchvision.datasets.INaturalist(root=config.datapath,
                                                     version='2021_train_mini',
-                                                    target_type=target_type,
+                                                    target_type=iNat_target_type,
                                                     transform=data_transforms['train'],
                                                     download=download,
                                                     )
