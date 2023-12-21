@@ -89,10 +89,10 @@ def getdataset(datasetname,download):
 
 try:
     # load previously downloaded dataset
-    train_dataset=getdataset(False)
+    train_dataset=getdataset(datasetname,download=False)
 except Exception as e:
     #first run
-    train_dataset=getdataset(True)
+    train_dataset=getdataset(datasetname,download=True)
 
 
 torch.manual_seed(0)
